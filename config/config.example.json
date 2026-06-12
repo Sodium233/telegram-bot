@@ -1,0 +1,18 @@
+{
+    "_comment": "HITSZ Schedule Config",
+    "bot_token": "1234567890:ABCDEFGHIJKLMN...",
+    "account": {
+        "username": "20230001",
+        "password": "123456"
+    },
+    "base_url": "https://jw.hitsz.edu.cn",
+    "schedule":{
+        "xn": "2025-2026",
+        "xq": "2",
+        "first_day": "2026-03-09"
+    },
+    "output":{
+        "schedule_file": "./data/schedule.json",
+        "ics_file": "./data/schedule.ics"
+    }
+}
