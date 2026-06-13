@@ -16,7 +16,6 @@
 - `bot.py`：Telegram 命令处理逻辑（`/start`、`/update_schedule`）
 - `api.py`：封装课表更新流程
 - `jwclient.py`：与教务系统交互的核心客户端
-- `utils/accessSchedule.py`：通过 Playwright 抓取课表数据
 - `utils/gen_ics.py`：将 JSON 课表生成为 ICS
 - `config/config.example.json`：配置模板
 - `config/config.json`：真实配置文件（请勿提交）
