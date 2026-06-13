@@ -1,31 +1,20 @@
-from config import CONFIG
-import utils.accessSchedule as accessSchedule
+import asyncio
+from api import API
+from bot import TelegramBot
+from jwclient import JWClient
 
-from telegram import Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    ContextTypes,
-)
+async def main():
+    jwc= JWClient()
+    await jwc.initialize()
 
-async def start(update, context):
-    await update.message.reply_text(
-        "你好，我是 SodiumBot !"
-    )
+    api = API(jwc)
+    bot = TelegramBot(api)
 
-async def loadSchedule(update, context):
-    await accessSchedule.saveSchedule()
-    await update.message.reply_text("已抓取课表")
+    
+    await bot.run()
 
-def main():
-    app = Application.builder().token(CONFIG["bot_token"]).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("load_schedule", loadSchedule))
-    print("Bot is running...")
-    app.run_polling()
+    # 防止程序退出
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        print(f"错误: {e}")
+    asyncio.run(main())
