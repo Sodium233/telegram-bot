@@ -1,5 +1,6 @@
 from playwright.async_api import Playwright, async_playwright
 from config import CONFIG
+import exception
 import json
 
 class JWClient:
@@ -57,23 +58,31 @@ class JWClient:
                 await self.page.locator("#rememberMe").check()
                 await self.page.locator("a#login_submit").click()
                 await self.page.wait_for_load_state("networkidle")
-                continue
+
+                for _ in range(100):   # 最多等待10秒
+                    state = self.get_state()
+                    if state == "logged_in":
+                        print("登录成功")
+                        return
+                    if state == "need_2fa":
+                        raise exception.Need2FAException()
+                    await self.page.wait_for_timeout(100)
+                
+                # 超时
+                if self.get_state() == "need_login":
+                    if(await self.page.locator("#sliderDiv").is_visible()):
+                        raise exception.LoginFailedException("登陆失败，检测到滑块验证")
+                    else:
+                        raise exception.LoginFailedException("登陆失败，请检查账号密码")
+                raise RuntimeError(
+                    f"登录状态未知: {self.page.url}"
+                )
             elif state == "need_2fa":
                 # 需要2fa验证
                 print("需要2FA验证，正在处理2FA验证")
                 await self.page.locator("#getDynamicCode").click()
-                code = input("请输入2FA验证码: ")
-                await self.page.locator("#dynamicCode").fill(code)
-                await self.page.locator("#userNameDiv #reAuthSubmitBtn").click()
 
-                if await self.page.locator("button.trust-device-sub-btn").count() > 0:
-                    await self.page.locator("button.trust-device-sub-btn").click()
-                    print("已信任当前设备")
-                print("等待跳转至主页...")
-                await self.page.wait_for_url(
-                    "**/authentication/main"
-                )
-                continue
+                raise exception.Need2FAException()
             elif state == "session_invalid":    # 一般出现于直接访问主页但是会话失效的情况，由于开始时直接跳转到了初始页面，所以一般不会出现这种情况
                 # 会话过期，重新登陆
                 await self.page.locator(".towlg_tybox").click()     # 点击进入登录界面，应该会跳转到need_login界面
@@ -109,29 +118,25 @@ class JWClient:
         """
         获取课表。
         """
-        try:
-            await self._ensure_login()
-            schedule_data = await self.page.evaluate(
-                """
-                async (data) => {
-                    const response = await fetch(
-                        "/xszykb/queryxszykbzong",
+        await self._ensure_login()
+        schedule_data = await self.page.evaluate(
+            """
+            async (data) => {
+                const response = await fetch(
+                    "/xszykb/queryxszykbzong",
                         {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": 
-                                "application/x-www-form-urlencoded"
-                            },
-                            body: new URLSearchParams(data)
-                        }
-                    );
-                    return await response.json();
-                }
-                """,
-            self.data)
-        except Exception as e:
-            print(e)
-            return None
+                        method: "POST",
+                        headers: {
+                            "Content-Type": 
+                            "application/x-www-form-urlencoded"
+                        },
+                        body: new URLSearchParams(data)
+                    }
+                );
+                return await response.json();
+            }
+            """,
+        self.data)
         return schedule_data
 
     async def get_score(self):
@@ -176,5 +181,23 @@ class JWClient:
             return "need_2fa"
         else:
             return "unknown"
+    
+
+    async def submit_2fa(self, code):
+        # 需要2fa验证
+
+        await self.page.locator("#dynamicCode").fill(code)
+        await self.page.locator("#userNameDiv #reAuthSubmitBtn").click()
+        
+        if await self.page.locator("button.trust-device-sub-btn").count() > 0:
+            await self.page.locator("button.trust-device-sub-btn").click()
+            print("已信任当前设备")
+            print("等待跳转至主页...")
+            await self.page.wait_for_url(
+                "**/authentication/main"
+            )
+        else:
+            raise RuntimeError("2FA验证失败")
+
     async def close(self):
         await self._cleanup()

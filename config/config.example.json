@@ -1,6 +1,7 @@
 {
     "_comment": "HITSZ Schedule Config",
     "bot_token": "1234567890:ABCDEFGHIJKLMN...",
+    "my_user_id": 1145141919,
     "account": {
         "username": "20230001",
         "password": "123456"

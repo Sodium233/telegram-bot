@@ -1,6 +1,7 @@
 import asyncio
 from api import API
 from bot import TelegramBot
+from webserver import WebServer
 from jwclient import JWClient
 
 async def main():
@@ -9,7 +10,9 @@ async def main():
 
     api = API(jwc)
     bot = TelegramBot(api)
-
+    
+    web = WebServer()
+    await web.start()
     
     await bot.run()
 
