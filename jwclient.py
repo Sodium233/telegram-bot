@@ -159,16 +159,30 @@ class JWClient:
         """
         获取考试安排。
         """
-        try:
-            await self._ensure_login()
+        await self._ensure_login()
+        result = await self.page.evaluate("""
+            async () => {
+                const response = await fetch(
+                    "/component/queryKsxxByXs",
+                    {
+                        method: "POST",
+                        headers: {
+                            "X-Requested-With": "XMLHttpRequest"
+                        }
+                    }
+                );
 
-            # 以后实现
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
 
-            pass
-        except Exception as e:
-            print(e)
-            return None
-        
+                return await response.json();
+            }
+        """)
+        if not isinstance(result, list):
+            raise RuntimeError("获取考试数据失败")
+        return result
+
 
     def get_state(self):
         if self.page.url.endswith("/session/invalid"):

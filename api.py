@@ -1,25 +1,26 @@
 from utils import file
-from utils import gen_ics
+from utils.calendar import ScheduleManager
 from config import CONFIG
 
 import jwclient
+
 class API:
 
     def __init__(self, jw):
         self.jw = jw
+        self.schedule_manager = ScheduleManager()
 
-    async def update_schedule(self):
+    async def update_calendar(self):
         schedule_data = await self.jw.get_schedule()
+        exam_data = await self.jw.get_exam()
         file.save_json("schedule.json", schedule_data)
-        gen_ics.generate_ics_from_json(
-            CONFIG['output']['schedule_file'],
-            CONFIG['schedule']['first_day'],
-            CONFIG['output']['ics_file']
-        )
-        print(f"课表已保存到 {CONFIG['output']['schedule_file']} 和 {CONFIG['output']['ics_file']}")
+        file.save_json("exam.json", exam_data)
+        self.schedule_manager.load()
+        self.schedule_manager.generate_ics()
+        print(f"日历已保存到{CONFIG['output']['ics_file']}")
 
-    def get_local_schdule(self):
+    def get_local_schedule(self):
         return file.load_json("schedule.json")
 
-    async def update_score(self):
-        pass
+    def get_today_schedule(self):
+        return self.schedule_manager.load().get_today_schedule()
