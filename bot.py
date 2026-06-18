@@ -1,5 +1,6 @@
 import asyncio
 import re
+from datetime import datetime
 
 from config import CONFIG
 import exception
@@ -142,4 +143,18 @@ class TelegramBot:
         future.set_result(text)
 
     async def today_schedule(self, update:Update, context: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text(self.api.get_today_schedule)
+        courses = sorted(
+            self.api.get_today_schedule(),
+            key=lambda c: c["start"]
+        )
+        msg = ""
+        for course in courses:
+            start = datetime.fromisoformat(course["start"])
+            end = datetime.fromisoformat(course["end"])
+
+            msg += (
+                f"{course['title']}\n"
+                f"{start:%H:%M} - {end:%H:%M}\n"
+                f"{course['location']}\n\n"
+            )
+        await update.message.reply_text(msg)

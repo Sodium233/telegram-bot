@@ -84,7 +84,7 @@ def parse_weeks(zc):
     weeks = []
     for i, c in enumerate(zc):
         if c == "1":
-            weeks.append(i + 1)
+            weeks.append(i)
     return weeks
 
 
