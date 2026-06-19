@@ -27,6 +27,9 @@ class TelegramBot:
             self.text_handler
             ))
         self.app.add_handler(CommandHandler("today_schedule",self.today_schedule))
+        self.app.add_handler(CommandHandler("gpa",self.gpa))
+        self.app.add_handler(CommandHandler("score",self.score))
+
 
     async def run(self):
         print("Bot is running...")
@@ -46,8 +49,15 @@ class TelegramBot:
         context: ContextTypes.DEFAULT_TYPE
     ):
         await update.message.reply_text(
-            "你好，我是 SodiumBot !"
+            "你好，我是 SodiumBot !\n"
+            "目前我的功能如下\n"
+            "/myid  获得你的id\n"
+            "/update_calendar  更新课表数据，可在10.249.61.82:8000/schedule.ics获得课表\n"
+            "/today_schedule    从已保存的课表数据中获取今日日程\n"
+            "/gpa   获取当前gpa数据\n"
+            "/score 获取成绩，如/score all或/score 2025-2026 2"
         )
+        return
     async def myid(
         self,
         update: Update,
@@ -56,6 +66,7 @@ class TelegramBot:
         await update.message.reply_text(
             f"你的User ID是：{update.effective_user.id}"
         )
+        return
     
     async def update_calendar(
         self,
@@ -75,8 +86,10 @@ class TelegramBot:
             await update.message.reply_text(
                 "日历更新完成"
             )
+            return
         except exception.LoginFailedException as e:
             await update.message.reply_text(str(e))
+            return
         except exception.Need2FAException:
             await update.message.reply_text(
                 "教务系统需要二次认证，请输入HIT App验证码（120秒内）："
@@ -97,6 +110,7 @@ class TelegramBot:
             await update.message.reply_text("正在保存课程、考试数据...")
             await self.api.update_calendar()
             await update.message.reply_text("验证成功，日历更新完成")
+            return
 
         except Exception as e:
             import traceback
@@ -143,18 +157,81 @@ class TelegramBot:
         future.set_result(text)
 
     async def today_schedule(self, update:Update, context: ContextTypes.DEFAULT_TYPE):
-        courses = sorted(
-            self.api.get_today_schedule(),
-            key=lambda c: c["start"]
-        )
-        msg = ""
-        for course in courses:
-            start = datetime.fromisoformat(course["start"])
-            end = datetime.fromisoformat(course["end"])
-
-            msg += (
-                f"{course['title']}\n"
-                f"{start:%H:%M} - {end:%H:%M}\n"
-                f"{course['location']}\n\n"
+        today_schedule = self.api.get_today_schedule()
+        if not today_schedule:
+            await update.message.reply_text("今日无事项")
+            return
+        else:
+            courses = sorted(
+                today_schedule,
+                key=lambda c: c["start"]
             )
+            msg = ""
+            for course in courses:
+                start = datetime.fromisoformat(course["start"])
+                end = datetime.fromisoformat(course["end"])
+
+                msg += (
+                    f"{course['title']}\n"
+                    f"{start:%H:%M} - {end:%H:%M}\n"
+                    f"{course['location']}\n\n"
+                )
+            await update.message.reply_text(msg)
+            return
+    
+    async def gpa(self, update:Update, context: ContextTypes.DEFAULT_TYPE):
+        gpa = await self.api.get_gpa()
+        msg = (
+            f"核心课程学分绩：{gpa['PJXFJ']}\n"
+            f"排名范围：{gpa['PJXFJ_PM_FW']}%  （{gpa['PJXFJ_PM']}/{gpa['ZRS']}）\n"
+            f"全部课程GPA：{gpa['GPA_QBJQKC']}\n"
+            f"排名范围：{gpa['GPA_QBJQKC_PM_FW']}%  （{gpa['GPA_QBJQKC_PM']}/{gpa['ZRS']}）\n"
+        )
         await update.message.reply_text(msg)
+    
+    async def score(self, update:Update, context: ContextTypes.DEFAULT_TYPE):
+        arg = " ".join(context.args)
+        if not arg:
+            await update.message.reply_text(
+                "/score 的用法如下\n"
+                "/score all  查询全部课程的成绩\n"
+                "/score [学期] 查询某学期的课程，如/score 2025-2026 1"
+            )
+            return
+        if context.args[0] == "all":
+            scores = await self.api.get_scores()
+        else:
+            m = re.match(r"^(\d{4}-\d{4})\s([123])$", arg.strip())
+            if not m:
+                await update.message.reply_text(
+                    "输入格式错误！"
+                    "/score 的用法如下\n"
+                    "/score all  查询全部课程的成绩\n"
+                    "/score [学期] 查询某学期的课程，如/score 2025-2026 1/2/3"
+                )
+                return
+            xn = m.group(1)
+            xq = m.group(2)
+            scores = await self.api.get_scores(xn,xq)
+
+        if not scores:
+            await update.message.reply_text("未查询到成绩！")
+            return
+        else:
+            msg = ""
+            for item in scores['content']['list']:
+                name = item.get("kcmc")     # 课程名称
+                score = item.get("zpcj")    # 总成绩
+                credit = item.get("xf")     # 学分
+                hour = item.get("xs")       # 学时
+                course_type = item.get("khfs")  # 考试/考察课
+
+                msg += (
+                    f"课程名称：{name}（{course_type}）\n"
+                    f"总评成绩：{score}\n"
+                    f"学分：{credit}  学时：{hour}\n\n"
+                )
+            await update.message.reply_text(msg)
+            return
+        
+            

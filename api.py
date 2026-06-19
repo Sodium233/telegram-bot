@@ -24,3 +24,10 @@ class API:
 
     def get_today_schedule(self):
         return self.schedule_manager.load().get_today_schedule()
+
+    async def get_gpa(self):
+        gpa = await self.jw.get_gpa()
+        return gpa
+    async def get_scores(self, xn=None, xq=None):
+        scores = await self.jw.get_scores(xn,xq)
+        return scores

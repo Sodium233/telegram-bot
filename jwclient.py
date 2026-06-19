@@ -139,21 +139,73 @@ class JWClient:
         self.data)
         return schedule_data
 
-    async def get_score(self):
+    async def get_gpa(self):
         """
         获取成绩。
         """
         try:
             await self._ensure_login()
+            result = await self.page.evaluate("""
+                async () => {
+                    const response = await fetch(
+                        "/cjgl/grcjcx/getgpa",
+                        {
+                            method: "POST",
+                            headers: {
+                                "X-Requested-With": "XMLHttpRequest"
+                            }
+                        }
+                    );
 
-            # 以后实现
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
 
-            pass
+                    return await response.json();
+                }
+            """)
+            return result
         except Exception as e:
             print(e)
             return None
         
+    async def get_scores(self, xn=None, xq=None):
+        """
+        获取课程分数。
+        """
+        js = """
+        async ({xn, xq}) => {
+            const res = await fetch("/cjgl/grcjcx/grcjcx", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Requested-With": "XMLHttpRequest"
+                },
+                body: JSON.stringify({
+                    xn: xn,
+                    xq: xq,
+                    kcmc: null,
+                    cxbj: "-1",
+                    pylx: "1",
+                    current: 1,
+                    pageSize: 100,
+                    sffx: null
+                })
+            });
 
+            if (!res.ok) throw new Error(res.status);
+
+            return await res.json();
+        }
+        """
+
+        try:
+            await self._ensure_login()
+            result = await self.page.evaluate(js,{"xn": xn, "xq": xq})
+            return result
+        except Exception as e:
+            print(e)
+            return None
 
     async def get_exam(self):
         """
