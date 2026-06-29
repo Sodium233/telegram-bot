@@ -222,13 +222,16 @@ class TelegramBot:
             for item in scores['content']['list']:
                 name = item.get("kcmc")     # 课程名称
                 score = item.get("zpcj")    # 总成绩
+                rank = int(item.get("pm"))
+                total_num = int(item.get("zrs"))
                 credit = item.get("xf")     # 学分
                 hour = item.get("xs")       # 学时
                 course_type = item.get("khfs")  # 考试/考察课
 
                 msg += (
                     f"课程名称：{name}（{course_type}）\n"
-                    f"总评成绩：{score}\n"
+                    f"总评成绩：{score} \n"
+                    f"排名范围：{round(rank/total_num *100,2)}%（{rank}/{total_num}）\n"
                     f"学分：{credit}  学时：{hour}\n\n"
                 )
             await update.message.reply_text(msg)
