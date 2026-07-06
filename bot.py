@@ -86,6 +86,11 @@ class TelegramBot:
             await update.message.reply_text(
                 "日历更新完成"
             )
+            xn, xq, first_monday = self.api.get_current_term_information()
+            await update.message.reply_text(
+                f"当前为：{xn} 学年第 {xq} 学期\n"
+                f"开学时间为：{first_monday}"
+            )
             return
         except exception.LoginFailedException as e:
             await update.message.reply_text(str(e))
@@ -116,7 +121,7 @@ class TelegramBot:
             import traceback
             traceback.print_exc()
             await update.message.reply_text(
-                f"更新失败：{e}"
+                f"发生错误：{e}"
             )
 
     async def wait_for_2fa(self, user_id):

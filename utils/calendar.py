@@ -298,6 +298,8 @@ class ScheduleManager:
     def get_today_schedule(self):
         return self.get_events_for_date(date.today())
 
+    def set_first_monday(self, date):
+        self.first_monday = datetime.strptime(date, "%Y-%m-%d")
 
 def generate_calendar():
     return ScheduleManager().load().generate_ics()

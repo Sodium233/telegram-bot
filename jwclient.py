@@ -14,10 +14,10 @@ class JWClient:
         self.playwright = None
         self.context = None
         self.page = None
-        self.data = {
-            "xn": CONFIG["schedule"]["xn"],
-            "xq": CONFIG["schedule"]["xq"],
-        }
+        self.xn = None
+        self.xq = None
+        self.first_monday = None
+
 
     async def initialize(self):
         if self.playwright: #防止重复创建
@@ -102,139 +102,200 @@ class JWClient:
             # 不是登录界面，直接重新登录
             await self._login()
         
-
-
     async def _cleanup(self):
         if self.context:
             await self.context.close()
             self.context = None
             self.page = None
-
         if self.playwright:
             await self.playwright.stop()
             self.playwright = None
 
-    async def get_schedule(self):
+    async def update_current_term(self):
         """
-        获取课表。
+        更新当前学年学期
         """
         await self._ensure_login()
-        schedule_data = await self.page.evaluate(
-            """
-            async (data) => {
-                const response = await fetch(
-                    "/xszykb/queryxszykbzong",
-                        {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": 
-                            "application/x-www-form-urlencoded"
-                        },
-                        body: new URLSearchParams(data)
-                    }
-                );
-                return await response.json();
+        response = await self.context.request.post(
+            "https://jw.hitsz.edu.cn/component/querydangqianxnxq",
+            headers={
+                "X-Requested-With": "XMLHttpRequest",
+                "Origin": "https://jw.hitsz.edu.cn",
+                "Referer": "https://jw.hitsz.edu.cn/authentication/main",
             }
-            """,
-        self.data)
-        return schedule_data
+        )
+        if not response.ok:
+            body = await response.text()
+            raise RuntimeError(
+                f"获取当前学年学期失败：HTTP {response.status}\n"
+                f"响应内容：{body}"
+            )
+        result = await response.json()
+        self.xn = result["XN"]
+        self.xq = result["XQ"]
+    
+    async def update_current_first_monday(self):
+        self.first_monday = await self.get_first_monday()
+
+    async def _resolve_term(self, xn=None, xq=None):
+        """
+        解析要查询的学年学期。
+
+        未传入参数时，使用当前学年学期。
+        """
+        if self.xn is None or self.xq is None:
+            await self.update_current_term()
+
+        query_xn = self.xn if xn is None else xn
+        query_xq = self.xq if xq is None else xq
+
+        return query_xn, query_xq
+
+    async def get_schedule(self, xn=None, xq=None):
+        await self._ensure_login()
+        query_xn, query_xq = await self._resolve_term(xn, xq)
+
+        response = await self.context.request.post(
+            "https://jw.hitsz.edu.cn/xszykb/queryxszykbzong",
+            headers={
+                "X-Requested-With": "XMLHttpRequest",
+            },
+            form={
+                "xn": query_xn,
+                "xq": query_xq,
+            }
+        )
+
+        if not response.ok:
+            body = await response.text()
+            raise RuntimeError(
+                f"获取课表失败：HTTP {response.status}\n"
+                f"响应内容：{body}"
+            )
+
+        return await response.json()
 
     async def get_gpa(self):
         """
         获取成绩。
         """
-        try:
-            await self._ensure_login()
-            result = await self.page.evaluate("""
-                async () => {
-                    const response = await fetch(
-                        "/cjgl/grcjcx/getgpa",
-                        {
-                            method: "POST",
-                            headers: {
-                                "X-Requested-With": "XMLHttpRequest"
-                            }
-                        }
-                    );
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-
-                    return await response.json();
-                }
-            """)
-            return result
-        except Exception as e:
-            print(e)
-            return None
+        await self._ensure_login()
+        response = await self.context.request.post(
+            "https://jw.hitsz.edu.cn/cjgl/grcjcx/getgpa",
+            headers={
+                "X-Requested-With": "XMLHttpRequest",
+            }
+        )
+        if not response.ok:
+            body = await response.text()
+            raise RuntimeError(
+                f"获取GPA失败：HTTP {response.status}\n"
+                f"响应内容：{body}"
+            )
+        
+        return await response.json()
         
     async def get_scores(self, xn=None, xq=None):
         """
-        获取课程分数。
+        获取课程成绩。
+        Args:
+            xn: 学年，例如 "2025-2026"。
+            xq: 学期，例如 "1"、"2"、"3"。
+                未传入时使用当前学年学期。
         """
-        js = """
-        async ({xn, xq}) => {
-            const res = await fetch("/cjgl/grcjcx/grcjcx", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-Requested-With": "XMLHttpRequest"
-                },
-                body: JSON.stringify({
-                    xn: xn,
-                    xq: xq,
-                    kcmc: null,
-                    cxbj: "-1",
-                    pylx: "1",
-                    current: 1,
-                    pageSize: 100,
-                    sffx: null
-                })
-            });
+        await self._ensure_login()
 
-            if (!res.ok) throw new Error(res.status);
+        query_xn, query_xq = await self._resolve_term(xn, xq)
 
-            return await res.json();
-        }
-        """
+        response = await self.context.request.post(
+            "https://jw.hitsz.edu.cn/cjgl/grcjcx/grcjcx",
+            headers={
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+                "Origin": "https://jw.hitsz.edu.cn",
+                "Referer": "https://jw.hitsz.edu.cn/authentication/main",
+            },
+            data={
+                "xn": query_xn,
+                "xq": query_xq,
+                "kcmc": None,
+                "cxbj": "-1",
+                "pylx": "1",
+                "current": 1,
+                "pageSize": 100,
+                "sffx": None,
+            }
+        )
+        if not response.ok:
+            body = await response.text()
+            raise RuntimeError(
+                f"获取成绩失败：HTTP {response.status}\n"
+                f"响应内容：{body}"
+            )
+        return await response.json()
 
-        try:
-            await self._ensure_login()
-            result = await self.page.evaluate(js,{"xn": xn, "xq": xq})
-            return result
-        except Exception as e:
-            print(e)
-            return None
-
-    async def get_exam(self):
+    async def get_exam(self, xn=None, xq=None):
         """
         获取考试安排。
         """
         await self._ensure_login()
-        result = await self.page.evaluate("""
-            async () => {
-                const response = await fetch(
-                    "/component/queryKsxxByXs",
-                    {
-                        method: "POST",
-                        headers: {
-                            "X-Requested-With": "XMLHttpRequest"
-                        }
-                    }
-                );
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                return await response.json();
+        query_xn, query_xq = await self._resolve_term(xn, xq)
+        response = await self.context.request.post(
+            "https://jw.hitsz.edu.cn/kscxtj/queryXsksByxhList",
+            headers={
+                "X-Requested-With": "XMLHttpRequest",
+            },
+            form={
+                "ppylx": "1",
+                "pkkyx": "",
+                "pxn": query_xn,
+                "pxq": query_xq,
+                "pageNum": "1",
+                "pageSize": "19",
             }
-        """)
-        if not isinstance(result, list):
-            raise RuntimeError("获取考试数据失败")
-        return result
+        )
+        if not response.ok:
+            body = await response.text()
+            raise RuntimeError(
+                f"获取考试安排失败：HTTP {response.status}\n"
+                f"响应内容：{body}"
+            )
+        return await response.json()
 
+    async def get_first_monday(self, xn=None, xq=None):
+        """
+        根据学期获取第一个周一的日期
+        """
+        await self._ensure_login()
+        query_xn, query_xq = await self._resolve_term(xn, xq)
+        response = await self.context.request.post(
+            "https://jw.hitsz.edu.cn/component/queryRlZcSj",
+            headers={
+                "Accept": "*/*",
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "X-Requested-With": "XMLHttpRequest",
+                "Origin": "https://jw.hitsz.edu.cn",
+                "Referer": "https://jw.hitsz.edu.cn/authentication/main",
+            },
+            form={
+                "xn": query_xn,
+                "xq": query_xq,
+                "djz": "1"
+            }
+        )
+        if not response.ok:
+            body = await response.text()
+            raise RuntimeError(
+                f"获取{xn}学年{xq}学期第一个周一失败：HTTP {response.status}\n"
+                f"响应内容：{body}"
+            )
+        result = await response.json()
+        return result["content"][0]["rq"]
+
+    async def get_latest_term_information(self):
+        await self.update_current_term()
+        await self.update_current_first_monday()
+        return self.xn, self.xq, self.first_monday
 
     def get_state(self):
         if self.page.url.endswith("/session/invalid"):
@@ -248,7 +309,6 @@ class JWClient:
         else:
             return "unknown"
     
-
     async def submit_2fa(self, code):
         # 需要2fa验证
 

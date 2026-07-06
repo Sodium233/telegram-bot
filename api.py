@@ -8,22 +8,33 @@ class API:
 
     def __init__(self, jw):
         self.jw = jw
-        self.schedule_manager = ScheduleManager()
+        self.current_schedule_manager = ScheduleManager()
+        self.current_xn = None
+        self.current_xq = None
+        self.current_first_monday = None
 
     async def update_calendar(self):
+        await self.update_term_information()
+        self.current_schedule_manager.set_first_monday(self.current_first_monday)
         schedule_data = await self.jw.get_schedule()
         exam_data = await self.jw.get_exam()
         file.save_json("schedule.json", schedule_data)
         file.save_json("exam.json", exam_data)
-        self.schedule_manager.load()
-        self.schedule_manager.generate_ics()
+        self.current_schedule_manager.load()
+        self.current_schedule_manager.generate_ics()
         print(f"日历已保存到{CONFIG['output']['ics_file']}")
+
+    async def update_term_information(self):
+        self.current_xn, self.current_xq, self.current_first_monday = await self.jw.get_latest_term_information()
+
+    def get_current_term_information(self):
+        return self.current_xn, self.current_xq, self.current_first_monday
 
     def get_local_schedule(self):
         return file.load_json("schedule.json")
 
     def get_today_schedule(self):
-        return self.schedule_manager.load().get_today_schedule()
+        return self.current_schedule_manager.load().get_today_schedule()
 
     async def get_gpa(self):
         gpa = await self.jw.get_gpa()
