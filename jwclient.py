@@ -201,12 +201,9 @@ class JWClient:
         Args:
             xn: 学年，例如 "2025-2026"。
             xq: 学期，例如 "1"、"2"、"3"。
-                未传入时使用当前学年学期。
+                未传入时获取结果为全部学期课程成绩
         """
         await self._ensure_login()
-
-        query_xn, query_xq = await self._resolve_term(xn, xq)
-
         response = await self.context.request.post(
             "https://jw.hitsz.edu.cn/cjgl/grcjcx/grcjcx",
             headers={
@@ -216,8 +213,8 @@ class JWClient:
                 "Referer": "https://jw.hitsz.edu.cn/authentication/main",
             },
             data={
-                "xn": query_xn,
-                "xq": query_xq,
+                "xn": xn,
+                "xq": xq,
                 "kcmc": None,
                 "cxbj": "-1",
                 "pylx": "1",
@@ -241,17 +238,9 @@ class JWClient:
         await self._ensure_login()
         query_xn, query_xq = await self._resolve_term(xn, xq)
         response = await self.context.request.post(
-            "https://jw.hitsz.edu.cn/kscxtj/queryXsksByxhList",
+            "https://jw.hitsz.edu.cn/component/queryKsxxByXs",
             headers={
                 "X-Requested-With": "XMLHttpRequest",
-            },
-            form={
-                "ppylx": "1",
-                "pkkyx": "",
-                "pxn": query_xn,
-                "pxq": query_xq,
-                "pageNum": "1",
-                "pageSize": "19",
             }
         )
         if not response.ok:
@@ -260,7 +249,8 @@ class JWClient:
                 f"获取考试安排失败：HTTP {response.status}\n"
                 f"响应内容：{body}"
             )
-        return await response.json()
+        result = await response.json()
+        return result
 
     async def get_first_monday(self, xn=None, xq=None):
         """
