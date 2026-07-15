@@ -1,6 +1,7 @@
 import asyncio
 import re
-from datetime import datetime
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
 
 from config import CONFIG
 import exception
@@ -34,6 +35,10 @@ class TelegramBot:
     async def run(self):
         print("Bot is running...")
         await self.app.initialize()
+        self.app.job_queue.run_daily(
+            self.update_calendar_job,
+            time=time(hour=23, minute=19,tzinfo=ZoneInfo("Asia/Shanghai"))
+        )
         await self.app.start()
         await self.app.updater.start_polling()
         try:
@@ -110,7 +115,7 @@ class TelegramBot:
             except Exception as e:
                 await update.message.reply_text(
                     f"发生错误：{e}"
-                )   
+                )
                 return
             await update.message.reply_text("正在保存课程、考试数据...")
             await self.api.update_calendar()
@@ -244,4 +249,34 @@ class TelegramBot:
             await update.message.reply_text(msg)
             return
         
-            
+    async def update_calendar_job(
+        self,
+        context: ContextTypes.DEFAULT_TYPE
+    ):
+        try:
+            print("开始自动更新课表")
+
+            await self.api.update_calendar()
+
+            await context.bot.send_message(
+                chat_id=CONFIG["my_user_id"],
+                text="课表自动更新完成"
+            )
+
+        except exception.LoginFailedException as e:
+            await context.bot.send_message(
+                chat_id=CONFIG["my_user_id"],
+                text=f"自动更新失败：{e}"
+            )
+
+        except exception.Need2FAException:
+            await context.bot.send_message(
+                chat_id=CONFIG["my_user_id"],
+                text="自动更新失败：教务系统需要二次认证"
+            )
+
+        except Exception as e:
+            await context.bot.send_message(
+                chat_id=CONFIG["my_user_id"],
+                text=f"自动更新异常：{e}"
+            )
