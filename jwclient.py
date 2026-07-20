@@ -17,6 +17,8 @@ class JWClient:
         self.xn = None
         self.xq = None
         self.first_monday = None
+        self.student_fah = None
+        self.student_status_id = None
 
 
     async def initialize(self):
@@ -137,6 +139,65 @@ class JWClient:
     async def update_current_first_monday(self):
         self.first_monday = await self.get_first_monday()
 
+    async def update_fah(self):
+        response = await self.context.request.post(
+            "https://jw.hitsz.edu.cn/cjgl/cjzhtjcx/cjcx/queryfah",
+            headers={
+                "Accept": "*/*",
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "X-Requested-With": "XMLHttpRequest",
+                "Origin": "https://jw.hitsz.edu.cn",
+                "Referer": "https://jw.hitsz.edu.cn/cjgl/grcjcx/cjxqList",
+            },
+            form={
+                "xh": self.username,
+                "pylx": "1",
+                "falxdm": "1"
+            }
+        )
+        fah = await response.text()
+        self.student_fah = fah
+
+    async def update_student_status_id(self):
+        response = await self.context.request.post(
+            "https://jw.hitsz.edu.cn/xjgl/fxzygl/getxjxx",
+            headers={
+                "Accept": "*/*",
+                "X-Requested-With": "XMLHttpRequest",
+                "Origin": "https://jw.hitsz.edu.cn",
+                "Referer": "https://jw.hitsz.edu.cn/xjgl/xjxxxg/queryxjxxxg/1?editlb=1",
+            }
+        )
+        data = await response.json()
+        self.student_status_id = data["id"]
+    
+    async def get_credit_requirements(self):
+        await self._ensure_login()
+        if (self.student_fah==None):
+            await self.update_fah()
+        if (self.student_status_id==None):
+            await self.update_student_status_id()
+        response = await self.context.request.post(
+            "https://jw.hitsz.edu.cn/cjgl/cjzhtjcx/cjcx/queryXflbyq1",
+            headers={
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+                "Origin": "https://jw.hitsz.edu.cn",
+                "Referer": "https://jw.hitsz.edu.cn/cjgl/grcjcx/cjxqList",
+            },
+            data={
+                "current":1,
+                "pageSize":20,
+                "xjid":self.student_status_id,
+                "zyfxdm":None,
+                "pylx":"1",
+                "fah":self.student_fah,
+                "sffx":"0"
+            }
+        )
+        data = await response.json()
+        return data["xflbyq"]
+
     async def _resolve_term(self, xn=None, xq=None):
         """
         解析要查询的学年学期。
@@ -253,6 +314,39 @@ class JWClient:
         result = await response.json()
         return result
 
+    async def get_transferable_social_credit(self):
+        response = await self.context.request.post(
+            "https://jw.hitsz.edu.cn/Cxxf_wh/queryShsjZxf",
+            headers={
+                "X-Requested-With": "XMLHttpRequest",
+                "Origin": "https://jw.hitsz.edu.cn",
+                "Referer": "https://jw.hitsz.edu.cn/cjgl/grcjcx/cjxqList"
+            }
+        )
+        result = await response.json()
+        return result["zxf"]
+    
+    async def get_transferable_innovation_credit(self):
+
+        response = await self.context.request.post(
+            "https://jw.hitsz.edu.cn/Cxxf_xs/queryLbxxList",
+            headers={
+                "Accept": "*/*",
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "X-Requested-With": "XMLHttpRequest",
+                "Origin": "https://jw.hitsz.edu.cn",
+                "Referer": "https://jw.hitsz.edu.cn/Cxxf_xs/query/1"
+            },
+            form={
+                "p_dalei": "",
+                "p_id": "",
+                "p_pylx": "1",
+                "p_xh_gld": ""
+            }
+        )
+        print(result)
+        return result["zongxf"]
+    
     async def get_first_monday(self, xn=None, xq=None):
         """
         根据学期获取第一个周一的日期

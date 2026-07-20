@@ -30,6 +30,7 @@ class TelegramBot:
         self.app.add_handler(CommandHandler("today_schedule",self.today_schedule))
         self.app.add_handler(CommandHandler("gpa",self.gpa))
         self.app.add_handler(CommandHandler("score",self.score))
+        self.app.add_handler(CommandHandler("credit",self.check_student_credit_requirements))
 
 
     async def run(self):
@@ -70,7 +71,8 @@ class TelegramBot:
             "/update_calendar  更新课表数据，可在10.249.61.82:8000/schedule.ics获得课表\n"
             "/today_schedule    从已保存的课表数据中获取今日日程\n"
             "/gpa   获取当前gpa数据\n"
-            "/score 获取成绩，如/score all或/score 2025-2026 2"
+            "/score 获取成绩，如/score all或/score 2025-2026 2\n"
+            "/credit 查询学分获取进度"
         )
         return
     async def myid(
@@ -291,3 +293,26 @@ class TelegramBot:
                 chat_id=CONFIG["my_user_id"],
                 text=f"自动更新异常：{e}"
             )
+    
+    async def check_student_credit_requirements(self, update:Update, context: ContextTypes.DEFAULT_TYPE):
+        response = await self.api.get_credit_requirenments()
+        msg = ""
+        for requirement in response:
+            name = requirement["kclbmc"]
+            completed = requirement["ywcxf"]
+            required = requirement["yqwcxf"]
+            status = "（已完成）" if float(completed) >= float(required) - 1e-6 else "（未完成）"
+
+            msg += (
+                f"类别：{name}{status}\n"
+                f"完成情况：{completed}/{required}分\n\n"
+            )
+        await update.message.reply_text(msg)
+
+        transferable_social_credit, transferable_innovation_credit = await self.api.get_transferable_credit()
+        msg = (
+            f"可结转的社会实践学分：{transferable_social_credit}\n"
+            f"可结转的创新学分：{transferable_innovation_credit}\n\n"
+        )
+        await update.message.reply_text(msg)
+

@@ -36,6 +36,12 @@ class API:
     def get_today_schedule(self):
         return self.current_schedule_manager.load().get_today_schedule()
 
+    async def get_credit_requirenments(self):
+        return await self.jw.get_credit_requirements()
+
+    async def get_transferable_credit(self):
+        return await self.jw.get_transferable_social_credit(), await self.jw.get_transferable_innovation_credit()
+
     async def get_gpa(self):
         gpa = await self.jw.get_gpa()
         return gpa
