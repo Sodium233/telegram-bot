@@ -233,7 +233,7 @@ class TelegramBot:
             xn = m.group(1)
             xq = m.group(2)
             scores = await self.api.get_scores(xn,xq)
-            print(scores)
+            
 
         if not scores:
             await update.message.reply_text("未查询到成绩！")
