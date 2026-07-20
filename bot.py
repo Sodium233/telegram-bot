@@ -40,12 +40,22 @@ class TelegramBot:
             time=time(hour=23, minute=19,tzinfo=ZoneInfo("Asia/Shanghai"))
         )
         await self.app.start()
+
         await self.app.updater.start_polling()
+
         try:
             await asyncio.Event().wait()
+
+        except Exception as e:
+            print("Bot stopped:", e)
+
         finally:
-            await self.app.updater.stop()
-            await self.app.stop()
+            if self.app.updater.running:
+                await self.app.updater.stop()
+
+            if self.app.running:
+                await self.app.stop()
+
             await self.app.shutdown()
     
     async def start(
@@ -223,6 +233,7 @@ class TelegramBot:
             xn = m.group(1)
             xq = m.group(2)
             scores = await self.api.get_scores(xn,xq)
+            print(scores)
 
         if not scores:
             await update.message.reply_text("未查询到成绩！")

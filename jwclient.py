@@ -221,6 +221,7 @@ class JWClient:
                 "current": 1,
                 "pageSize": 100,
                 "sffx": None,
+                "yhdm":""
             }
         )
         if not response.ok:
