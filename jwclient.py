@@ -344,7 +344,7 @@ class JWClient:
                 "p_xh_gld": ""
             }
         )
-        print(result)
+        result = await response.json()
         return result["zongxf"]
     
     async def get_first_monday(self, xn=None, xq=None):
